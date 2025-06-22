@@ -101,7 +101,7 @@ const App = {
         try {
             const data = await ApiService.analyzeVideo(file);
             UIHandler.hideLoading("分析完成！");
-            UIHandler.displayVideo(data.output_video_path); // data.output_video_path 現在直接是 S3 URL
+            UIHandler.displayVideo(`${ApiService.BASE_URL}/${data.output_video_path}`);
             UIHandler.displayAnalysisResults(data);
 
             // 將新的分析結果添加到歷史紀錄 (假設後端返回的 data 包含 new_analysis_id)

@@ -27,10 +27,10 @@ const UIHandler = {
     },
 
     displayVideo(videoUrl) {
-        this.$videoPlayer.attr('src', videoUrl);
-        this.$videoPlayer[0].load(); // 重新載入影片
-        this.$videoPlayerMessage.addClass('hidden'); // 隱藏提示訊息
-        this.$videoPlayer[0].play(); // 自動播放
+    this.$videoPlayer[0].src = videoUrl;             // ✅ 正確設 src
+    this.$videoPlayer[0].load();                     // 重新載入影片
+    this.$videoPlayerMessage.addClass('hidden');     // 隱藏提示訊息
+    this.$videoPlayer[0].play();                     // 自動播放
     },
 
     displayAnalysisResults(results) {

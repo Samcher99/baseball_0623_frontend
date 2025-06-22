@@ -1,7 +1,7 @@
 // js/api.js
 // 負責與後端 API 進行互動的模組
 const ApiService = {
-    BASE_URL: "https://baseball-0623-backend.onrender.com", // 您的 FastAPI 後端位址，部署後請修改
+    BASE_URL: "http://43.207.79.9:8000", // 您的 FastAPI 後端位址，部署後請修改
 
     async analyzeVideo(file) {
         const formData = new FormData();

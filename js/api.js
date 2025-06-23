@@ -1,7 +1,7 @@
 // js/api.js
 // 負責與後端 API 進行互動的模組
 const ApiService = {
-    BASE_URL: "https://95bf-43-207-79-9.ngrok-free.app", // 您的 FastAPI 後端位址，部署後請修改
+    BASE_URL: "https://b410-43-207-222-55.ngrok-free.app", // 您的 FastAPI 後端位址，部署後請修改
 
     async analyzeVideo(file) {
         const formData = new FormData();

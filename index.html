@@ -4,134 +4,764 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>棒球投手分析儀表板</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jQuery CDN -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <!-- Chart.js CDN for statistics charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Radar Chart plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <style>
-        /* 自定義滾動條樣式，讓它更好看一點 */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
         }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 10px;
+        .card {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+            margin-bottom: 20px;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            font-size: 1.5rem;
+            flex-direction: column;
+        }
+        .spinner {
+            border: 8px solid rgba(255, 255, 255, 0.3);
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 2s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        /* Custom modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 10000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .modal-button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .modal-confirm {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .modal-cancel {
+            background-color: #f44336;
+            color: white;
         }
     </style>
 </head>
-<body class="bg-gray-100 font-sans antialiased text-gray-800">
+<body class="bg-gray-100 p-4">
 
-    <div id="main-dashboard" class="min-h-screen flex flex-col p-6">
-        <header class="bg-white rounded-lg shadow-lg p-6 mb-6 flex justify-between items-center">
-            <h1 class="text-3xl font-extrabold text-blue-700">棒球投手分析儀表板</h1>
-            <button id="show-history-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300">
-                查看歷史分析數據
-            </button>
-        </header>
+    <!-- Custom Modal Structure -->
+    <div id="customModal" class="modal">
+        <div class="modal-content">
+            <p id="modalMessage" class="text-lg mb-4"></p>
+            <div class="modal-buttons">
+                <button id="modalConfirmBtn" class="modal-button modal-confirm">確認</button>
+                <button id="modalCancelBtn" class="modal-button modal-cancel">取消</button>
+            </div>
+        </div>
+    </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-grow">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>影片分析中，請稍候...</p>
+    </div>
 
-            <div class="lg:col-span-2 bg-white rounded-lg shadow-lg p-6 flex flex-col">
-                <h2 class="text-2xl font-bold text-gray-700 mb-4">上傳影片進行分析</h2>
+    <div id="mainPage" class="container">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">棒球投手分析儀表板</h1>
 
-                <div id="drop-area" class="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition duration-300 relative">
-                    <input type="file" id="video-upload" accept="video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                    <p class="text-gray-500">拖曳影片至此或點擊上傳</p>
-                    <p class="text-xs text-gray-400 mt-2">支援MP4, MOV, AVI等格式</p>
-                </div>
-                <button id="upload-button" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md mt-6 transition duration-300 w-full disabled:opacity-50 disabled:cursor-not-allowed">
-                    開始分析
-                </button>
-
-                <div id="upload-status" class="text-gray-600 mt-4 text-center">等待影片上傳...</div>
-                <div id="loading-spinner" class="hidden mx-auto mt-2 w-8 h-8 border-4 border-blue-200 border-t-blue-500 rounded-full animate-spin"></div>
-
-                <div class="mt-6 flex-grow flex flex-col items-center justify-center">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-3">影片預覽與分析結果</h3>
-                    <video id="video-player" controls class="max-h-96 w-full object-contain bg-black rounded-lg shadow-md"></video>
-                    <p id="video-player-message" class="text-gray-500 text-sm mt-2">影片將在此處播放，並顯示關鍵影格。</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="card col-span-1">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">影片上傳區</h2>
+                <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg p-6 h-80 hover:border-blue-500 transition-colors duration-200">
+                    <input type="file" id="video-upload" accept="video/mp4,video/quicktime" class="hidden">
+                    <button id="upload-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                        選擇影片檔案
+                    </button>
+                    <p id="file-name" class="mt-4 text-gray-600"></p>
+                    <p class="mt-2 text-sm text-gray-500">支援 MP4 和 MOV 格式</p>
                 </div>
             </div>
 
-            <div class="lg:col-span-1 flex flex-col gap-6">
-                <div class="bg-white rounded-lg shadow-lg p-6">
-                    <h2 class="text-2xl font-bold text-gray-700 mb-4">投球表現概覽</h2>
-                    <p class="text-gray-700 text-lg mb-2"><strong>投球評分:</strong> <span id="pitch-score" class="text-blue-600 font-bold text-xl">N/A</span> / 9</p>
-                    <p class="text-gray-700 text-lg"><strong>球速:</strong> <span id="max-speed" class="text-green-600 font-bold text-xl">N/A</span> km/h</p>
+            <div class="card col-span-1">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">影片播放區</h2>
+                <div class="flex items-center justify-center bg-gray-200 rounded-lg h-80 overflow-hidden">
+                    <video id="video-player" controls class="w-full h-full object-contain rounded-lg hidden"></video>
+                    <p id="video-placeholder" class="text-gray-500">分析完成後將顯示影片</p>
                 </div>
+            </div>
+        </div>
 
-                <div class="bg-white rounded-lg shadow-lg p-6 flex-grow">
-                    <h2 class="text-2xl font-bold text-gray-700 mb-4">運動力學特徵</h2>
-                    <div id="biomechanics-results" class="text-gray-700 text-sm">
-                        <ul class="list-disc list-inside space-y-1">
-                            <li>釋放影格: <span id="release_frame">N/A</span></li>
-                            <li>著地影格: <span id="landing_frame">N/A</span></li>
-                            <li>肩膀影格: <span id="shoulder_frame">N/A</span></li>
-                            <li>總影格數: <span id="total_frames">N/A</span></li>
-                            <li>軀幹屈曲偏移: <span id="trunk_flexion_excursion">N/A</span></li>
-                            <li>骨盆傾斜於FC: <span id="pelvis_obliquity_at_fc">N/A</span></li>
-                            <li>軀幹旋轉於BR: <span id="trunk_rotation_at_br">N/A</span></li>
-                            <li>肩膀外展於BR: <span id="shoulder_abduction_at_br">N/A</span></li>
-                            <li>軀幹屈曲於BR: <span id="trunk_flexion_at_br">N/A</span></li>
-                            <li>軀幹側向屈曲於HS: <span id="trunk_lateral_flexion_at_hs">N/A</span></li>
-                        </ul>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- 姿勢評分與運動力學特徵 -->
+            <div class="card col-span-1">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">姿勢評分與運動力學特徵</h2>
+                <div id="biomechanics-features" class="space-y-3 text-gray-700">
+                    <p><strong>出手幀 (Release Frame):</strong> <span id="release-frame">N/A</span></p>
+                    <p><strong>踏步幀 (Landing Frame):</strong> <span id="landing-frame">N/A</span></p>
+                    <p><strong>肩膀幀 (Shoulder Frame):</strong> <span id="shoulder-frame">N/A</span></p>
+                    <p><strong>總幀數 (Total Frames):</strong> <span id="total-frames">N/A</span></p>
+                    <hr class="border-gray-300 my-2">
+                    <p><strong>軀幹屈曲幅度 (Trunk Flexion Excursion):</strong> <span id="trunk-flexion-excursion">N/A</span></p>
+                    <p><strong>骨盆傾斜度 (Pelvis Obliquity at FC):</strong> <span id="pelvis-obliquity">N/A</span></p>
+                    <p><strong>軀幹旋轉 (Trunk Rotation at BR):</strong> <span id="trunk-rotation">N/A</span></p>
+                    <p><strong>肩部外展 (Shoulder Abduction at BR):</strong> <span id="shoulder-abduction">N/A</span></p>
+                    <p><strong>軀幹屈曲 (Trunk Flexion at BR):</strong> <span id="trunk-flexion">N/A</span></p>
+                    <p><strong>軀幹側向屈曲 (Trunk Lateral Flexion at HS):</strong> <span id="trunk-lateral-flexion">N/A</span></p>
+                </div>
+            </div>
+
+            <!-- 模型預測結果 -->
+            <div class="card col-span-1">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">模型預測結果</h2>
+                <div class="space-y-4 text-center text-gray-700">
+                    <div class="bg-blue-100 p-4 rounded-lg shadow-inner">
+                        <p class="text-lg">最大球速:</p>
+                        <p id="max-speed-kmh" class="text-5xl font-extrabold text-blue-700">N/A</p>
+                        <p class="text-sm text-blue-600">公里/小時</p>
+                    </div>
+                    <div class="bg-green-100 p-4 rounded-lg shadow-inner">
+                        <p class="text-lg">投球分數:</p>
+                        <p id="pitch-score" class="text-5xl font-extrabold text-green-700">N/A</p>
+                        <p class="text-sm text-green-600">分 (1-9)</p>
                     </div>
                 </div>
             </div>
+
+            <!-- 歷史紀錄 -->
+            <div class="card col-span-1">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">歷史紀錄</h2>
+                <div id="history-records" class="space-y-4 max-h-80 overflow-y-auto">
+                    <p id="no-history" class="text-gray-500 text-center">目前沒有歷史紀錄。</p>
+                </div>
+                <div class="mt-6 text-center">
+                    <button id="view-history-charts" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                        查看歷史紀錄分析
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div id="history-analysis-page" class="min-h-screen flex flex-col p-6 hidden">
-        <header class="bg-white rounded-lg shadow-lg p-6 mb-6 flex justify-between items-center">
-            <h1 class="text-3xl font-extrabold text-blue-700">歷史分析數據</h1>
-            <button id="show-dashboard-button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-300">
-                返回主儀表板
-            </button>
-        </header>
+    <!-- 棒球歷史紀錄分析統計圖表頁面 -->
+    <div id="historyChartsPage" class="container hidden">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">棒球歷史紀錄分析統計圖表</h1>
+        <button id="backToMainPage" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md mb-6">
+            ← 返回主頁
+        </button>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow">
-            <div class="bg-white rounded-lg shadow-lg p-6 col-span-full">
-                <h2 class="text-2xl font-bold text-gray-700 mb-4">選擇歷史紀錄進行比較</h2>
-                <select id="history-record-select" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
-                <div id="selected-record-details" class="mt-4 p-4 bg-gray-50 rounded-md text-sm text-gray-700">
-                    <p class="text-center text-gray-500">請從上方下拉選單選擇一個歷史紀錄。</p>
+        <!-- 資料選擇方式 -->
+        <div class="card mb-6">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">選擇分析紀錄</h2>
+            <select id="record-selector" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="">請選擇一個歷史紀錄</option>
+            </select>
+        </div>
+
+        <!-- 統計圖表區塊 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 投球分數分佈直方圖 -->
+            <div class="card col-span-1">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">投球分數分佈直方圖</h2>
+                <div class="chart-container">
+                    <canvas id="pitchScoreChart"></canvas>
                 </div>
             </div>
 
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-2xl font-bold text-gray-700 mb-4">投球分數分佈 (直方圖)</h2>
-                <canvas id="pitchScoreHistogramChart"></canvas>
-            </div>
-            <div class="bg-white rounded-lg shadow-lg p-6">
-                <h2 class="text-2xl font-bold text-gray-700 mb-4" id="pie-chart-title">運動力學特徵分佈 (圓餅圖)</h2>
-                <select id="biomechanics-pie-select" class="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
-                    </select>
-                <canvas id="biomechanicsPieChart"></canvas>
-            </div>
-            <div class="bg-white rounded-lg shadow-lg p-6 col-span-full">
-                <h2 class="text-2xl font-bold text-gray-700 mb-4">運動力學特徵表現 (雷達圖)</h2>
-                <canvas id="biomechanicsRadarChart"></canvas>
-            </div>
-             <div class="bg-white rounded-lg shadow-lg p-6 col-span-full">
-                <h2 class="text-2xl font-bold text-gray-700 mb-4">歷史紀錄列表</h2>
-                <div id="history-list-container" class="overflow-y-auto max-h-96">
-                    <ul id="history-list" class="divide-y divide-gray-200">
-                        </ul>
-                    <p id="no-history-message" class="text-center text-gray-500 py-4 hidden">暫無歷史紀錄。</p>
+            <!-- 各種運動力學特徵分布的圓餅圖 -->
+            <div class="card col-span-1">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">運動力學特徵分佈圓餅圖</h2>
+                <select id="biomechanics-pie-selector" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4">
+                    <option value="">請選擇一個特徵</option>
+                    <option value="Trunk_flexion_excursion">軀幹屈曲幅度</option>
+                    <option value="Pelvis_obliquity_at_FC">骨盆傾斜度</option>
+                    <option value="Trunk_rotation_at_BR">軀幹旋轉</option>
+                    <option value="Shoulder_abduction_at_BR">肩部外展</option>
+                    <option value="Trunk_flexion_at_BR">軀幹屈曲</option>
+                    <option value="Trunk_lateral_flexion_at_HS">軀幹側向屈曲</option>
+                </select>
+                <div class="chart-container">
+                    <canvas id="biomechanicsPieChart"></canvas>
                 </div>
             </div>
 
+            <!-- 運動力學特徵雷達圖 -->
+            <div class="card col-span-full">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">運動力學特徵雷達圖</h2>
+                <div class="chart-container">
+                    <canvas id="biomechanicsRadarChart"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
+    <script>
+        // 後端 URL，請替換成您實際的後端 URL
+        const BACKEND_URL = "http://127.0.0.1:8000";
 
-    <script type="module" src="./js/app.js"></script>
+        let allHistoryData = []; // 儲存所有歷史紀錄數據
+
+        // 自定義彈出視窗函數
+        function showCustomModal(message, type = 'alert') {
+            return new Promise((resolve) => {
+                $('#modalMessage').text(message);
+                if (type === 'confirm') {
+                    $('#modalConfirmBtn').show();
+                    $('#modalCancelBtn').show();
+                } else { // type === 'alert'
+                    $('#modalConfirmBtn').show(); // Show confirm for alert as well
+                    $('#modalCancelBtn').hide();
+                }
+                $('#customModal').css('display', 'flex'); // Use flex to center
+
+                $('#modalConfirmBtn').off().on('click', function() {
+                    $('#customModal').hide();
+                    resolve(true);
+                });
+                $('#modalCancelBtn').off().on('click', function() {
+                    $('#customModal').hide();
+                    resolve(false);
+                });
+            });
+        }
+
+
+        // 頁面導航函數
+        function navigateTo(pageId) {
+            $('.container').addClass('hidden');
+            $(`#${pageId}`).removeClass('hidden');
+            if (pageId === 'historyChartsPage') {
+                loadHistoryForCharts();
+            }
+        }
+
+        // 影片上傳處理
+        $('#upload-button').on('click', function() {
+            $('#video-upload').click();
+        });
+
+        $('#video-upload').on('change', async function() {
+            const fileInput = this;
+            if (fileInput.files.length === 0) {
+                $('#file-name').text('');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            $('#file-name').text(`已選擇檔案: ${file.name}`);
+
+            const formData = new FormData();
+            formData.append('video_file', file);
+
+            $('#loadingOverlay').removeClass('hidden'); // 顯示 loading 畫面
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/analyze-pitch/`, {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '影片分析失敗');
+                }
+
+                const data = await response.json();
+                console.log('分析結果:', data);
+
+                // 更新影片播放區
+                const videoPlayer = $('#video-player');
+                const outputVideoPath = data.output_video_path;
+                //const filename = outputVideoPath.split('/').pop();
+                videoPlayer.attr('src', `${BACKEND_URL}/${outputVideoPath}`);
+                videoPlayer.removeClass('hidden');
+                $('#video-placeholder').addClass('hidden');
+
+                // 更新姿勢評分與運動力學特徵
+                const biomechanics = data.biomechanics_features;
+                $('#release-frame').text(biomechanics.release_frame || 'N/A');
+                $('#landing-frame').text(biomechanics.landing_frame || 'N/A');
+                $('#shoulder-frame').text(biomechanics.shoulder_frame || 'N/A');
+                $('#total-frames').text(biomechanics.total_frames || 'N/A');
+
+                $('#trunk-flexion-excursion').text(biomechanics.Trunk_flexion_excursion !== undefined ? biomechanics.Trunk_flexion_excursion.toFixed(2) : 'N/A');
+                $('#pelvis-obliquity').text(biomechanics.Pelvis_obliquity_at_FC !== undefined ? biomechanics.Pelvis_obliquity_at_FC.toFixed(2) : 'N/A');
+                $('#trunk-rotation').text(biomechanics.Trunk_rotation_at_BR !== undefined ? biomechanics.Trunk_rotation_at_BR.toFixed(2) : 'N/A');
+                $('#shoulder-abduction').text(biomechanics.Shoulder_abduction_at_BR !== undefined ? biomechanics.Shoulder_abduction_at_BR.toFixed(2) : 'N/A');
+                $('#trunk-flexion').text(biomechanics.Trunk_flexion_at_BR !== undefined ? biomechanics.Trunk_flexion_at_BR.toFixed(2) : 'N/A');
+                $('#trunk-lateral-flexion').text(biomechanics.Trunk_lateral_flexion_at_HS !== undefined ? biomechanics.Trunk_lateral_flexion_at_HS.toFixed(2) : 'N/A');
+
+                // 更新模型預測結果
+                $('#max-speed-kmh').text(data.max_speed_kmh !== undefined ? data.max_speed_kmh : 'N/A');
+                $('#pitch-score').text(data.pitch_score !== undefined ? data.pitch_score : 'N/A');
+
+                // 重新載入歷史紀錄
+                loadHistoryRecords();
+
+                await showCustomModal('影片分析成功！', 'alert');
+
+            } catch (error) {
+                console.error('分析請求失敗:', error);
+                await showCustomModal(`影片分析失敗: ${error.message}`, 'alert');
+            } finally {
+                $('#loadingOverlay').addClass('hidden'); // 隱藏 loading 畫面
+            }
+        });
+
+        // 載入歷史紀錄
+        async function loadHistoryRecords() {
+            try {
+                const response = await fetch(`${BACKEND_URL}/history/`);
+                if (!response.ok) {
+                    throw new Error('無法載入歷史紀錄');
+                }
+                allHistoryData = await response.json();
+                console.log('歷史紀錄:', allHistoryData);
+
+                const historyRecordsDiv = $('#history-records');
+                historyRecordsDiv.empty(); // 清空現有紀錄
+
+                if (allHistoryData.length === 0) {
+                    historyRecordsDiv.append('<p id="no-history" class="text-gray-500 text-center">目前沒有歷史紀錄。</p>');
+                    $('#view-history-charts').prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+                } else {
+                    $('#no-history').remove();
+                    $('#view-history-charts').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
+
+                    allHistoryData.forEach(record => {
+                        const recordElement = `
+                            <div class="border border-gray-200 rounded-lg p-3 shadow-sm flex justify-between items-center bg-white">
+                                <div>
+                                    <p class="text-sm font-semibold">分析 ID: ${record.id}</p>
+                                    <p class="text-sm text-gray-600">球速: ${record.max_speed_kmh} km/h</p>
+                                    <p class="text-sm text-gray-600">分數: ${record.pitch_score}</p>
+                                </div>
+                                <button class="view-detail-btn bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-bold py-1 px-3 rounded-md" data-id="${record.id}">
+                                    查看細節
+                                </button>
+                            </div>
+                        `;
+                        historyRecordsDiv.append(recordElement);
+                    });
+
+                    // 為查看細節按鈕添加事件監聽器
+                    $('.view-detail-btn').on('click', function() {
+                        const recordId = $(this).data('id');
+                        const selectedRecord = allHistoryData.find(record => record.id === recordId);
+                        if (selectedRecord) {
+                            displayRecordDetails(selectedRecord);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('載入歷史紀錄失敗:', error);
+                await showCustomModal(`載入歷史紀錄失敗: ${error.message}`, 'alert');
+            }
+        }
+
+        // 顯示單一歷史紀錄的詳細資訊
+        async function displayRecordDetails(record) {
+            const confirmDisplay = await showCustomModal(`
+                <strong>分析 ID:</strong> ${record.id}<br>
+                <strong>影片路徑:</strong> ${record.video_path.split('/').pop()}<br>
+                <strong>最大球速:</strong> ${record.max_speed_kmh} km/h<br>
+                <strong>投球分數:</strong> ${record.pitch_score}<br><br>
+                <strong>生物力學特徵:</strong><br>
+                出手幀 (Release Frame): ${record.biomechanics_features.release_frame}<br>
+                踏步幀 (Landing Frame): ${record.biomechanics_features.landing_frame}<br>
+                肩膀幀 (Shoulder Frame): ${record.biomechanics_features.shoulder_frame}<br>
+                總幀數 (Total Frames): ${record.biomechanics_features.total_frames}<br>
+                軀幹屈曲幅度 (Trunk Flexion Excursion): ${record.biomechanics_features.Trunk_flexion_excursion ? record.biomechanics_features.Trunk_flexion_excursion.toFixed(2) : 'N/A'}<br>
+                骨盆傾斜度 (Pelvis Obliquity at FC): ${record.biomechanics_features.Pelvis_obliquity_at_FC ? record.biomechanics_features.Pelvis_obliquity_at_FC.toFixed(2) : 'N/A'}<br>
+                軀幹旋轉 (Trunk Rotation at BR): ${record.biomechanics_features.Trunk_rotation_at_BR ? record.biomechanics_features.Trunk_rotation_at_BR.toFixed(2) : 'N/A'}<br>
+                肩部外展 (Shoulder Abduction at BR): ${record.biomechanics_features.Shoulder_abduction_at_BR ? record.biomechanics_features.Shoulder_abduction_at_BR.toFixed(2) : 'N/A'}<br>
+                軀幹屈曲 (Trunk Flexion at BR): ${record.biomechanics_features.Trunk_flexion_at_BR ? record.biomechanics_features.Trunk_flexion_at_BR.toFixed(2) : 'N/A'}<br>
+                軀幹側向屈曲 (Trunk Lateral Flexion at HS): ${record.biomechanics_features.Trunk_lateral_flexion_at_HS ? record.biomechanics_features.Trunk_lateral_flexion_at_HS.toFixed(2) : 'N/A'}
+            `, 'alert');
+        }
+
+
+        // 初始化時載入歷史紀錄
+        $(document).ready(function() {
+            loadHistoryRecords();
+        });
+
+        // 歷史紀錄圖表頁面導航
+        $('#view-history-charts').on('click', function() {
+            navigateTo('historyChartsPage');
+        });
+
+        $('#backToMainPage').on('click', function() {
+            navigateTo('mainPage');
+        });
+
+        // =====================================
+        // 歷史紀錄分析統計圖表頁面功能
+        // =====================================
+        let pitchScoreChartInstance;
+        let biomechanicsPieChartInstance;
+        let biomechanicsRadarChartInstance;
+
+        function loadHistoryForCharts() {
+            const recordSelector = $('#record-selector');
+            recordSelector.empty();
+            recordSelector.append('<option value="">請選擇一個歷史紀錄</option>');
+            allHistoryData.forEach(record => {
+                recordSelector.append(`<option value="${record.id}">分析 ID: ${record.id} (球速: ${record.max_speed_kmh} km/h, 分數: ${record.pitch_score})</option>`);
+            });
+
+            // 初始化所有圖表為空
+            destroyCharts();
+            drawPitchScoreHistogram(allHistoryData.map(r => r.pitch_score));
+            drawBiomechanicsRadarChart({}); // 繪製空雷達圖
+        }
+
+        function destroyCharts() {
+            if (pitchScoreChartInstance) {
+                pitchScoreChartInstance.destroy();
+            }
+            if (biomechanicsPieChartInstance) {
+                biomechanicsPieChartInstance.destroy();
+            }
+            if (biomechanicsRadarChartInstance) {
+                biomechanicsRadarChartInstance.destroy();
+            }
+        }
+
+        // 投球分數分佈直方圖
+        function drawPitchScoreHistogram(scores) {
+            const ctx = document.getElementById('pitchScoreChart').getContext('2d');
+            const scoreCounts = {};
+            for (let i = 1; i <= 9; i++) {
+                scoreCounts[i] = 0;
+            }
+            scores.forEach(score => {
+                if (score >= 1 && score <= 9) {
+                    scoreCounts[score]++;
+                }
+            });
+
+            const labels = Object.keys(scoreCounts);
+            const data = Object.values(scoreCounts);
+
+            pitchScoreChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '投球分數次數',
+                        data: data,
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '次數'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '投球分數'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '投球分數分佈'
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            formatter: (value) => value > 0 ? value : '', // 只顯示大於0的值
+                            color: '#333',
+                            font: {
+                                weight: 'bold'
+                            }
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
+
+        // 各種運動力學特徵分布的圓餅圖
+        function drawBiomechanicsPieChart(featureName, featureValue) {
+            if (biomechanicsPieChartInstance) {
+                biomechanicsPieChartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('biomechanicsPieChart').getContext('2d');
+            const data = [featureValue, 100 - featureValue]; // 簡化為特徵值和其餘部分，用於視覺化
+            const labels = [`${featureName} (${featureValue.toFixed(2)})`, '其他'];
+            const backgroundColors = ['rgba(255, 99, 132, 0.6)', 'rgba(200, 200, 200, 0.6)'];
+            const borderColors = ['rgba(255, 99, 132, 1)', 'rgba(200, 200, 200, 1)'];
+
+            biomechanicsPieChartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: `${translateFeatureName(featureName)} 分佈`
+                        },
+                        datalabels: {
+                            formatter: (value, ctx) => {
+                                let sum = 0;
+                                let dataArr = ctx.chart.data.datasets[0].data;
+                                dataArr.map(data => {
+                                    sum += data;
+                                });
+                                let percentage = (value * 100 / sum).toFixed(2) + '%';
+                                return percentage;
+                            },
+                            color: '#fff',
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
+
+        // 運動力學特徵雷達圖
+        function drawBiomechanicsRadarChart(biomechanics) {
+            if (biomechanicsRadarChartInstance) {
+                biomechanicsRadarChartInstance.destroy();
+            }
+
+            const ctx = document.getElementById('biomechanicsRadarChart').getContext('2d');
+
+            const labels = [
+                '軀幹屈曲幅度',
+                '骨盆傾斜度',
+                '軀幹旋轉',
+                '肩部外展',
+                '軀幹屈曲',
+                '軀幹側向屈曲'
+            ];
+
+            // 將特徵值轉換為雷達圖所需的數據，並進行簡單的正規化
+            // 這裡的正規化是基於一個假設的理想範圍，您可能需要根據實際數據調整
+            const data = [
+                normalizeValue(biomechanics.Trunk_flexion_excursion, 30, 90), // 假設理想範圍 30-90
+                normalizeValue(biomechanics.Pelvis_obliquity_at_FC, -10, 10),  // 假設理想範圍 -10-10
+                normalizeValue(biomechanics.Trunk_rotation_at_BR, 100, 200), // 假設理想範圍 100-200
+                normalizeValue(biomechanics.Shoulder_abduction_at_BR, 120, 180),// 假設理想範圍 120-180
+                normalizeValue(biomechanics.Trunk_flexion_at_BR, -90, -30),   // 假設理想範圍 -90--30
+                normalizeValue(biomechanics.Trunk_lateral_flexion_at_HS, -10, 10) // 假設理想範圍 -10-10
+            ];
+
+            biomechanicsRadarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '運動力學特徵',
+                        data: data,
+                        backgroundColor: 'rgba(75, 192, 192, 0.4)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        pointBackgroundColor: 'rgba(75, 192, 192, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(75, 192, 192, 1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    elements: {
+                        line: {
+                            borderWidth: 3
+                        }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: false
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 100, // 正規化到 0-100
+                            pointLabels: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '單一紀錄運動力學特徵雷達圖'
+                        },
+                        datalabels: {
+                            display: false, // 雷達圖上通常不顯示數據標籤
+                        }
+                    }
+                }
+            });
+        }
+
+        // 正規化函數 (將值映射到 0-100 範圍)
+        function normalizeValue(value, minRange, maxRange) {
+            if (value === undefined || value === null) return 0; // 或其他預設值
+            if (minRange === maxRange) return 50; // 避免除以零
+            return Math.max(0, Math.min(100, ((value - minRange) / (maxRange - minRange)) * 100));
+        }
+
+
+        // 特徵名稱翻譯
+        function translateFeatureName(englishName) {
+            const translations = {
+                "Trunk_flexion_excursion": "軀幹屈曲幅度",
+                "Pelvis_obliquity_at_FC": "骨盆傾斜度",
+                "Trunk_rotation_at_BR": "軀幹旋轉",
+                "Shoulder_abduction_at_BR": "肩部外展",
+                "Trunk_flexion_at_BR": "軀幹屈曲",
+                "Trunk_lateral_flexion_at_HS": "軀幹側向屈曲"
+            };
+            return translations[englishName] || englishName;
+        }
+
+        // 選擇紀錄後更新圖表
+        $('#record-selector').on('change', function() {
+            const selectedId = $(this).val();
+            if (selectedId) {
+                const selectedRecord = allHistoryData.find(record => record.id == selectedId);
+                if (selectedRecord) {
+                    drawBiomechanicsRadarChart(selectedRecord.biomechanics_features);
+                    // 當選擇單一紀錄時，清空圓餅圖選擇，並銷毀圓餅圖實例
+                    $('#biomechanics-pie-selector').val('');
+                    if (biomechanicsPieChartInstance) {
+                        biomechanicsPieChartInstance.destroy();
+                    }
+                }
+            } else {
+                // 如果沒有選擇紀錄，清除雷達圖
+                drawBiomechanicsRadarChart({});
+            }
+        });
+
+        // 圓餅圖選擇特徵後更新圖表
+        $('#biomechanics-pie-selector').on('change', function() {
+            const selectedFeature = $(this).val();
+            const selectedRecordId = $('#record-selector').val();
+
+            if (!selectedRecordId) {
+                showCustomModal('請先選擇一個歷史紀錄', 'alert');
+                $(this).val(''); // 重置選擇
+                return;
+            }
+
+            if (selectedFeature) {
+                const selectedRecord = allHistoryData.find(record => record.id == selectedRecordId);
+                if (selectedRecord && selectedRecord.biomechanics_features && selectedRecord.biomechanics_features[selectedFeature] !== undefined) {
+                    const featureValue = selectedRecord.biomechanics_features[selectedFeature];
+                    drawBiomechanicsPieChart(selectedFeature, featureValue);
+                } else {
+                    showCustomModal('所選紀錄無此特徵數據', 'alert');
+                    if (biomechanicsPieChartInstance) {
+                        biomechanicsPieChartInstance.destroy();
+                    }
+                }
+            } else {
+                if (biomechanicsPieChartInstance) {
+                    biomechanicsPieChartInstance.destroy();
+                }
+            }
+        });
+
+    </script>
 </body>
 </html>

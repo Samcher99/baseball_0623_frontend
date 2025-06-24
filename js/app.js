@@ -23,9 +23,9 @@ const App = {
         // 影片上傳區域拖曳事件
         const $dropArea = $('#drop-area');
         const $videoUploadInput = $('#video-upload');
+        const $uploadButton = $('#upload-button');
 
         $dropArea.on('click', function() {
-            // 修正：使用原生 DOM 元素的 click() 方法來避免可能的遞迴問題
             $videoUploadInput[0].click();
         });
 
@@ -41,84 +41,97 @@ const App = {
 
         $dropArea.on('drop', (e) => {
             e.preventDefault();
-            $(this).removeClass('border-blue-500 bg-blue-50');
+            $(e.currentTarget).removeClass('border-blue-500 bg-blue-50');
             const files = e.originalEvent.dataTransfer.files;
+            if (files.length > 0) {
+                $videoUploadInput[0].files = files;
+                this.handleVideoUpload(files[0]);
+            }
+        });
+
+        // 影片選擇事件
+        $videoUploadInput.on('change', (e) => {
+            const files = e.target.files;
             if (files.length > 0) {
                 this.handleVideoUpload(files[0]);
             }
         });
 
-        // 選擇檔案按鈕事件
-        $('#upload-button').on('click', function() {
-            // 修正：使用原生 DOM 元素的 click() 方法來避免可能的遞迴問題
-            $videoUploadInput[0].click();
-        });
-
-        // 檔案輸入變更事件
-        $videoUploadInput.on('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.handleVideoUpload(e.target.files[0]);
+        // 上傳按鈕點擊事件
+        $uploadButton.on('click', async () => {
+            const videoFile = $videoUploadInput[0].files[0];
+            if (videoFile) {
+                try {
+                    UIHandler.showLoading();
+                    const analysisResult = await ApiService.analyzeVideo(videoFile);
+                    UIHandler.displayAnalysisResults(analysisResult);
+                    UIHandler.hideLoading("分析完成！");
+                    this.loadHistoryRecords(); // 分析完成後重新載入歷史紀錄
+                } catch (error) {
+                    UIHandler.hideLoading("分析失敗");
+                    alert(`影片分析失敗: ${error.message}`);
+                }
+            } else {
+                alert('請先選擇一個影片檔案。');
             }
         });
 
-        // "查看歷史數據分析" 按鈕事件
-        $('#goto-history-button').on('click', () => {
+        // 導航到歷史分析頁面
+        $('#show-history-button').on('click', () => {
             this.showHistoryPage();
         });
 
-        // "返回儀表板" 按鈕事件 (歷史頁面)
-        $('#back-to-dashboard-button').on('click', () => {
+        // 導航回主儀表板
+        $('#show-dashboard-button').on('click', () => {
             this.showDashboardPage();
         });
 
-        // 歷史紀錄選單變更事件
-        $('#history-record-select').on('change', function() {
-            const selectedOption = $(this).find('option:selected');
-            const recordData = selectedOption.data('record'); // 獲取儲存在 data 屬性中的 JSON 物件
-            UIHandler.displaySelectedRecordDetails(recordData);
-            ChartRenderer.renderBiomechanicsRadarChart(recordData ? recordData.biomechanics_features : null);
+        // 歷史紀錄下拉選單改變事件
+        $('#history-record-select').on('change', (e) => {
+            const selectedRecordId = $(e.target).val();
+            const selectedRecord = this.data.historyRecords.find(record => record.id == selectedRecordId);
+            if (selectedRecord) {
+                UIHandler.displaySelectedRecordDetails(selectedRecord);
+                ChartRenderer.renderBiomechanicsRadarChart(selectedRecord.biomechanics_features);
+
+                // 根據當前圓餅圖選取器選中的特徵來更新圓餅圖
+                const selectedPieFeatureKey = UIHandler.$biomechanicsPieSelect.val();
+                if (selectedPieFeatureKey) {
+                    const featureName = UIHandler.$biomechanicsPieSelect.find('option:selected').text();
+                    ChartRenderer.renderBiomechanicsPieChart(this.data.historyRecords, selectedPieFeatureKey, featureName);
+                }
+            } else {
+                UIHandler.displaySelectedRecordDetails(null);
+                ChartRenderer.renderBiomechanicsRadarChart(null);
+            }
         });
 
-        // 委託事件：動態生成的 "查看" 按鈕
-        $('#history-list').on('click', '.view-history-detail-btn', (e) => {
-            const recordId = $(e.currentTarget).data('record-id');
-            const record = this.data.historyRecords.find(rec => rec.id === recordId);
-            if (record) {
-                this.showHistoryPage();
-                // 延遲一點點，確保頁面元素渲染完成
-                setTimeout(() => {
-                    $('#history-record-select').val(record.id).trigger('change');
-                }, 100);
+        // 新增：生物力學圓餅圖選擇器改變事件
+        UIHandler.$biomechanicsPieSelect.on('change', (e) => {
+            const selectedPieFeatureKey = $(e.target).val();
+            const featureName = $(e.target).find('option:selected').text();
+            UIHandler.updatePieChartTitle(featureName); // 更新標題
+
+            // 重新繪製圓餅圖
+            if (this.data.historyRecords.length > 0) {
+                ChartRenderer.renderBiomechanicsPieChart(this.data.historyRecords, selectedPieFeatureKey, featureName);
+            } else {
+                ChartRenderer.renderBiomechanicsPieChart(null); // 如果沒有數據，清空圖表
             }
+        });
+
+        // 歷史紀錄列表點擊事件
+        $('#history-list').on('click', 'li', function() {
+            const recordId = $(this).data('record-id');
+            $('#history-record-select').val(recordId).trigger('change'); // 觸發下拉選單的改變事件
         });
     },
 
-    async handleVideoUpload(file) {
-        if (!file) return;
-
-        UIHandler.showLoading(`正在上傳 ${file.name} 並分析...`);
-
-        try {
-            const data = await ApiService.analyzeVideo(file);
-            UIHandler.hideLoading("分析完成！");
-            UIHandler.displayVideo(`${ApiService.BASE_URL}/${data.output_video_path}`);
-            UIHandler.displayAnalysisResults(data);
-
-            // 將新的分析結果添加到歷史紀錄 (假設後端返回的 data 包含 new_analysis_id)
-            if (data.output_video_path && data.max_speed_kmh !== undefined && data.pitch_score !== undefined && data.biomechanics_features) {
-                const newRecord = {
-                    id: data.new_analysis_id || Date.now(), // 使用後端返回的 ID 或時間戳
-                    video_path: data.output_video_path,
-                    max_speed_kmh: data.max_speed_kmh,
-                    pitch_score: data.pitch_score,
-                    biomechanics_features: data.biomechanics_features
-                };
-                this.data.historyRecords.unshift(newRecord); // 添加到陣列最前面
-                UIHandler.addHistoryRecord(newRecord);
-            }
-        } catch (error) {
-            UIHandler.hideLoading(`分析失敗: ${error.message}`);
-            alert(`影片分析失敗: ${error.message}`);
+    handleVideoUpload(file) {
+        if (file) {
+            UIHandler.displayVideo(URL.createObjectURL(file));
+            UIHandler.clearAnalysisResults(); // 清除之前的結果
+            UIHandler.hideLoading("影片已選取，點擊開始分析");
         }
     },
 
@@ -148,9 +161,18 @@ const App = {
 
         // 載入歷史數據並渲染圖表
         UIHandler.populateHistorySelect(this.data.historyRecords);
+        UIHandler.populateBiomechanicsPieSelect(); // 填充圓餅圖特徵選擇器
+
         UIHandler.displaySelectedRecordDetails(null); // 清空詳細資訊
         ChartRenderer.renderPitchScoreHistogram(this.data.historyRecords);
-        ChartRenderer.renderAvgElbowAnglePie(this.data.historyRecords);
+        // 預設渲染第一個特徵的圓餅圖
+        if (this.data.historyRecords.length > 0 && UIHandler.$biomechanicsPieSelect.val()) {
+            const selectedPieFeatureKey = UIHandler.$biomechanicsPieSelect.val();
+            const featureName = UIHandler.$biomechanicsPieSelect.find('option:selected').text();
+            ChartRenderer.renderBiomechanicsPieChart(this.data.historyRecords, selectedPieFeatureKey, featureName);
+        } else {
+            ChartRenderer.renderBiomechanicsPieChart(null); // 無數據時清空
+        }
         ChartRenderer.renderBiomechanicsRadarChart(null); // 初始化為空
     },
 
@@ -160,7 +182,6 @@ const App = {
     }
 };
 
-// DOM 完全載入後初始化應用程式
-$(document).ready(function() {
+$(document).ready(() => {
     App.init();
 });

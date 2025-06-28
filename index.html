@@ -187,6 +187,12 @@
                         <p id="pitch-score" class="text-5xl font-extrabold text-green-700">N/A</p>
                         <p class="text-sm text-green-600">分 (1-9)</p>
                     </div>
+                    <!-- 新增 ball_score 顯示 -->
+                    <div class="bg-yellow-100 p-4 rounded-lg shadow-inner">
+                        <p class="text-lg">好球/壞球判斷:</p>
+                        <p id="ball-score-display" class="text-5xl font-extrabold text-yellow-700">N/A</p>
+                        <p class="text-sm text-yellow-600"> (數值: <span id="ball-score-raw">N/A</span>)</p>
+                    </div>
                 </div>
             </div>
 
@@ -248,10 +254,18 @@
             </div>
 
             <!-- 運動力學特徵雷達圖 -->
-            <div class="card col-span-full">
+            <div class="card col-span-1"> <!-- Changed from col-span-full to col-span-1 -->
                 <h2 class="text-2xl font-semibold text-gray-700 mb-4">運動力學特徵雷達圖</h2>
                 <div class="chart-container">
                     <canvas id="biomechanicsRadarChart"></canvas>
+                </div>
+            </div>
+
+            <!-- 好球/壞球分數排行榜 -->
+            <div class="card col-span-1"> <!-- Changed from col-span-full to col-span-1 -->
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">好球/壞球分數排行榜</h2>
+                <div id="ball-score-ranking" class="space-y-2 max-h-96 overflow-y-auto">
+                    <p class="text-gray-500 text-center">根據好球分數高低排序</p>
                 </div>
             </div>
         </div>
@@ -266,7 +280,7 @@
         // 自定義彈出視窗函數
         function showCustomModal(message, type = 'alert') {
             return new Promise((resolve) => {
-                $('#modalMessage').text(message);
+                $('#modalMessage').html(message); // 使用 .html() 來解析 <br> 標籤
                 if (type === 'confirm') {
                     $('#modalConfirmBtn').show();
                     $('#modalCancelBtn').show();
@@ -334,7 +348,6 @@
                 // 更新影片播放區
                 const videoPlayer = $('#video-player');
                 const outputVideoPath = data.output_video_path;
-                //const filename = outputVideoPath.split('/').pop();
                 videoPlayer.attr('src', `${BACKEND_URL}/${outputVideoPath}`);
                 videoPlayer.removeClass('hidden');
                 $('#video-placeholder').addClass('hidden');
@@ -356,6 +369,16 @@
                 // 更新模型預測結果
                 $('#max-speed-kmh').text(data.max_speed_kmh !== undefined ? data.max_speed_kmh : 'N/A');
                 $('#pitch-score').text(data.pitch_score !== undefined ? data.pitch_score : 'N/A');
+
+                // 更新 ball_score 顯示
+                if (data.ball_score !== undefined) {
+                    const ballScoreText = data.ball_score > 0.5 ? '好球' : '壞球';
+                    $('#ball-score-display').text(ballScoreText);
+                    $('#ball-score-raw').text(data.ball_score.toFixed(2));
+                } else {
+                    $('#ball-score-display').text('N/A');
+                    $('#ball-score-raw').text('N/A');
+                }
 
                 // 重新載入歷史紀錄
                 loadHistoryRecords();
@@ -391,12 +414,15 @@
                     $('#view-history-charts').prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
 
                     allHistoryData.forEach(record => {
+                        const ballScoreStatus = record.ball_score !== undefined ? (record.ball_score > 0.5 ? '好球' : '壞球') : 'N/A';
+                        const ballScoreRaw = record.ball_score !== undefined ? record.ball_score.toFixed(2) : 'N/A';
                         const recordElement = `
                             <div class="border border-gray-200 rounded-lg p-3 shadow-sm flex justify-between items-center bg-white">
                                 <div>
                                     <p class="text-sm font-semibold">分析 ID: ${record.id}</p>
                                     <p class="text-sm text-gray-600">球速: ${record.max_speed_kmh} km/h</p>
                                     <p class="text-sm text-gray-600">分數: ${record.pitch_score}</p>
+                                    <p class="text-sm text-gray-600">好壞球: ${ballScoreStatus} (數值: ${ballScoreRaw})</p>
                                 </div>
                                 <button class="view-detail-btn bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-bold py-1 px-3 rounded-md" data-id="${record.id}">
                                     查看細節
@@ -423,22 +449,26 @@
 
         // 顯示單一歷史紀錄的詳細資訊
         async function displayRecordDetails(record) {
+            const ballScoreStatus = record.ball_score !== undefined ? (record.ball_score > 0.5 ? '好球' : '壞球') : 'N/A';
+            const ballScoreRaw = record.ball_score !== undefined ? record.ball_score.toFixed(2) : 'N/A';
+
             const confirmDisplay = await showCustomModal(`
                 <strong>分析 ID:</strong> ${record.id}<br>
                 <strong>影片路徑:</strong> ${record.video_path.split('/').pop()}<br>
                 <strong>最大球速:</strong> ${record.max_speed_kmh} km/h<br>
-                <strong>投球分數:</strong> ${record.pitch_score}<br><br>
+                <strong>投球分數:</strong> ${record.pitch_score}<br>
+                <strong>好球/壞球判斷:</strong> ${ballScoreStatus} (數值: ${ballScoreRaw})<br><br>
                 <strong>生物力學特徵:</strong><br>
                 出手幀 (Release Frame): ${record.biomechanics_features.release_frame}<br>
                 踏步幀 (Landing Frame): ${record.biomechanics_features.landing_frame}<br>
                 肩膀幀 (Shoulder Frame): ${record.biomechanics_features.shoulder_frame}<br>
                 總幀數 (Total Frames): ${record.biomechanics_features.total_frames}<br>
-                軀幹屈曲幅度 (Trunk Flexion Excursion): ${record.biomechanics_features.Trunk_flexion_excursion ? record.biomechanics_features.Trunk_flexion_excursion.toFixed(2) : 'N/A'}<br>
-                骨盆傾斜度 (Pelvis Obliquity at FC): ${record.biomechanics_features.Pelvis_obliquity_at_FC ? record.biomechanics_features.Pelvis_obliquity_at_FC.toFixed(2) : 'N/A'}<br>
-                軀幹旋轉 (Trunk Rotation at BR): ${record.biomechanics_features.Trunk_rotation_at_BR ? record.biomechanics_features.Trunk_rotation_at_BR.toFixed(2) : 'N/A'}<br>
-                肩部外展 (Shoulder Abduction at BR): ${record.biomechanics_features.Shoulder_abduction_at_BR ? record.biomechanics_features.Shoulder_abduction_at_BR.toFixed(2) : 'N/A'}<br>
-                軀幹屈曲 (Trunk Flexion at BR): ${record.biomechanics_features.Trunk_flexion_at_BR ? record.biomechanics_features.Trunk_flexion_at_BR.toFixed(2) : 'N/A'}<br>
-                軀幹側向屈曲 (Trunk Lateral Flexion at HS): ${record.biomechanics_features.Trunk_lateral_flexion_at_HS ? record.biomechanics_features.Trunk_lateral_flexion_at_HS.toFixed(2) : 'N/A'}
+                軀幹屈曲幅度 (Trunk Flexion Excursion): ${record.biomechanics_features.Trunk_flexion_excursion !== undefined ? record.biomechanics_features.Trunk_flexion_excursion.toFixed(2) : 'N/A'}<br>
+                骨盆傾斜度 (Pelvis Obliquity at FC): ${record.biomechanics_features.Pelvis_obliquity_at_FC !== undefined ? record.biomechanics_features.Pelvis_obliquity_at_FC.toFixed(2) : 'N/A'}<br>
+                軀幹旋轉 (Trunk Rotation at BR): ${record.biomechanics_features.Trunk_rotation_at_BR !== undefined ? record.biomechanics_features.Trunk_rotation_at_BR.toFixed(2) : 'N/A'}<br>
+                肩部外展 (Shoulder Abduction at BR): ${record.biomechanics_features.Shoulder_abduction_at_BR !== undefined ? record.biomechanics_features.Shoulder_abduction_at_BR.toFixed(2) : 'N/A'}<br>
+                軀幹屈曲 (Trunk Flexion at BR): ${record.biomechanics_features.Trunk_flexion_at_BR !== undefined ? record.biomechanics_features.Trunk_flexion_at_BR.toFixed(2) : 'N/A'}<br>
+                軀幹側向屈曲 (Trunk Lateral Flexion at HS): ${record.biomechanics_features.Trunk_lateral_flexion_at_HS !== undefined ? record.biomechanics_features.Trunk_lateral_flexion_at_HS.toFixed(2) : 'N/A'}
             `, 'alert');
         }
 
@@ -469,13 +499,16 @@
             recordSelector.empty();
             recordSelector.append('<option value="">請選擇一個歷史紀錄</option>');
             allHistoryData.forEach(record => {
-                recordSelector.append(`<option value="${record.id}">分析 ID: ${record.id} (球速: ${record.max_speed_kmh} km/h, 分數: ${record.pitch_score})</option>`);
+                const ballScoreStatus = record.ball_score !== undefined ? (record.ball_score > 0.5 ? '好球' : '壞球') : 'N/A';
+                const ballScoreRaw = record.ball_score !== undefined ? record.ball_score.toFixed(2) : 'N/A';
+                recordSelector.append(`<option value="${record.id}">分析 ID: ${record.id} (球速: ${record.max_speed_kmh} km/h, 分數: ${record.pitch_score}, 好壞球: ${ballScoreStatus})</option>`);
             });
 
             // 初始化所有圖表為空
             destroyCharts();
             drawPitchScoreHistogram(allHistoryData.map(r => r.pitch_score));
             drawBiomechanicsRadarChart({}); // 繪製空雷達圖
+            updateBallScoreRanking(); // 更新好球/壞球分數排行榜
         }
 
         function destroyCharts() {
@@ -567,8 +600,11 @@
             }
 
             const ctx = document.getElementById('biomechanicsPieChart').getContext('2d');
+            // 這裡的邏輯需要根據實際特徵值的含義來調整，如果特徵值本身就是百分比或有明確上限，則可以這樣計算
+            // 如果特徵值沒有明確上限，則此圓餅圖可能不太適用於直接表示「特徵值和其餘部分」
+            // 為了演示目的，暫時維持原始邏輯，假設是某種完成度或占比
             const data = [featureValue, 100 - featureValue]; // 簡化為特徵值和其餘部分，用於視覺化
-            const labels = [`${featureName} (${featureValue.toFixed(2)})`, '其他'];
+            const labels = [`${translateFeatureName(featureName)} (${featureValue.toFixed(2)})`, '其他'];
             const backgroundColors = ['rgba(255, 99, 132, 0.6)', 'rgba(200, 200, 200, 0.6)'];
             const borderColors = ['rgba(255, 99, 132, 1)', 'rgba(200, 200, 200, 1)'];
 
@@ -761,6 +797,35 @@
                 }
             }
         });
+
+        // 更新好球/壞球分數排行榜
+        function updateBallScoreRanking() {
+            const rankingDiv = $('#ball-score-ranking');
+            rankingDiv.empty();
+            rankingDiv.append('<p class="text-gray-500 text-center">根據好球分數高低排序</p>');
+
+            // 過濾掉沒有 ball_score 的紀錄，並按 ball_score 降序排序
+            const rankedRecords = allHistoryData
+                .filter(record => record.ball_score !== undefined)
+                .sort((a, b) => b.ball_score - a.ball_score);
+
+            if (rankedRecords.length === 0) {
+                rankingDiv.append('<p class="text-gray-500 text-center">目前沒有好球/壞球分數紀錄。</p>');
+            } else {
+                rankedRecords.forEach((record, index) => {
+                    const ballScoreStatus = record.ball_score > 0.5 ? '好球' : '壞球';
+                    const recordElement = `
+                        <div class="border border-gray-200 rounded-lg p-3 shadow-sm flex justify-between items-center bg-white">
+                            <div>
+                                <p class="text-sm font-semibold">#${index + 1} 分析 ID: ${record.id}</p>
+                                <p class="text-sm text-gray-600">分數: ${record.ball_score.toFixed(2)} (${ballScoreStatus})</p>
+                            </div>
+                        </div>
+                    `;
+                    rankingDiv.append(recordElement);
+                });
+            }
+        }
 
     </script>
 </body>

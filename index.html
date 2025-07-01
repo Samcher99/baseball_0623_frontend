@@ -825,7 +825,94 @@
                 });
             }
         }
-        // 進度條js函數
+    </script>
+    
+    <script>
+        // ... 保留原本其他程式碼 ...
+    
+        $('#video-upload').on('change', async function() {
+            const fileInput = this;
+            if (fileInput.files.length === 0) {
+                $('#file-name').text('');
+                return;
+            }
+    
+            const file = fileInput.files[0];
+            $('#file-name').text(`已選擇檔案: ${file.name}`);
+    
+            const formData = new FormData();
+            formData.append('video_file', file);
+    
+            // 顯示 loading 畫面與進度條
+            $('#loadingOverlay').removeClass('hidden');
+            startFakeProgressBar();
+    
+            try {
+                const response = await fetch(`${BACKEND_URL}/analyze-pitch/`, {
+                    method: 'POST',
+                    body: formData,
+                });
+    
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '影片分析失敗');
+                }
+    
+                const data = await response.json();
+                console.log('分析結果:', data);
+    
+                // 更新影片播放區
+                const videoPlayer = $('#video-player');
+                const outputVideoPath = data.output_video_path;
+                videoPlayer.attr('src', `${BACKEND_URL}/${outputVideoPath}`);
+                videoPlayer.removeClass('hidden');
+                $('#video-placeholder').addClass('hidden');
+    
+                // 更新姿勢評分與運動力學特徵
+                const biomechanics = data.biomechanics_features;
+                $('#release-frame').text(biomechanics.release_frame || 'N/A');
+                $('#landing-frame').text(biomechanics.landing_frame || 'N/A');
+                $('#shoulder-frame').text(biomechanics.shoulder_frame || 'N/A');
+                $('#total-frames').text(biomechanics.total_frames || 'N/A');
+    
+                $('#trunk-flexion-excursion').text(biomechanics.Trunk_flexion_excursion !== undefined ? biomechanics.Trunk_flexion_excursion.toFixed(2) : 'N/A');
+                $('#pelvis-obliquity').text(biomechanics.Pelvis_obliquity_at_FC !== undefined ? biomechanics.Pelvis_obliquity_at_FC.toFixed(2) : 'N/A');
+                $('#trunk-rotation').text(biomechanics.Trunk_rotation_at_BR !== undefined ? biomechanics.Trunk_rotation_at_BR.toFixed(2) : 'N/A');
+                $('#shoulder-abduction').text(biomechanics.Shoulder_abduction_at_BR !== undefined ? biomechanics.Shoulder_abduction_at_BR.toFixed(2) : 'N/A');
+                $('#trunk-flexion').text(biomechanics.Trunk_flexion_at_BR !== undefined ? biomechanics.Trunk_flexion_at_BR.toFixed(2) : 'N/A');
+                $('#trunk-lateral-flexion').text(biomechanics.Trunk_lateral_flexion_at_HS !== undefined ? biomechanics.Trunk_lateral_flexion_at_HS.toFixed(2) : 'N/A');
+    
+                // 更新模型預測結果
+                $('#max-speed-kmh').text(data.max_speed_kmh !== undefined ? data.max_speed_kmh : 'N/A');
+                $('#pitch-score').text(data.pitch_score !== undefined ? data.pitch_score : 'N/A');
+    
+                if (data.ball_score !== undefined) {
+                    const ballScoreText = data.ball_score > 0.5 ? '好球' : '壞球';
+                    $('#ball-score-display').text(ballScoreText);
+                    $('#ball-score-raw').text(data.ball_score.toFixed(2));
+                } else {
+                    $('#ball-score-display').text('N/A');
+                    $('#ball-score-raw').text('N/A');
+                }
+    
+                // 重新載入歷史紀錄
+                loadHistoryRecords();
+    
+                await showCustomModal('影片分析成功！', 'alert');
+    
+            } catch (error) {
+                console.error('分析請求失敗:', error);
+                await showCustomModal(`影片分析失敗: ${error.message}`, 'alert');
+    
+            } finally {
+                completeProgressBar();
+                setTimeout(() => {
+                    $('#loadingOverlay').addClass('hidden');
+                }, 500);
+            }
+        });
+    
+        // 進度條 js 函數
         let progressInterval;
     
         function startFakeProgressBar() {
@@ -833,8 +920,8 @@
             $('#progress-bar').css('width', '0%');
             progressInterval = setInterval(() => {
                 if (progress < 90) {
-                progress += Math.random() * 3;
-                $('#progress-bar').css('width', `${progress}%`);
+                    progress += Math.random() * 3;
+                    $('#progress-bar').css('width', `${progress}%`);
                 }
             }, 300);
         }
@@ -843,21 +930,6 @@
             clearInterval(progressInterval);
             $('#progress-bar').css('width', '100%');
         }
-    
-      // 假設你分析影片時會呼叫以下流程：
-        function startAnalysis() {
-            $('#loadingOverlay').removeClass('hidden');
-            startFakeProgressBar();
-    
-        // 模擬分析完成 (這段僅作測試範例，可移除)
-            setTimeout(() => {
-              completeProgressBar();
-              setTimeout(() => {
-                $('#loadingOverlay').addClass('hidden');
-              }, 500); // 延遲隱藏，讓100%進度條顯示一下
-            }, 4000);
-          }
-
     </script>
 </body>
 </html>

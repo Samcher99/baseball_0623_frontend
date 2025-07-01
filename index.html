@@ -30,16 +30,19 @@
             margin-bottom: 20px;
         }
         .loading-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background-color: rgba(0, 0, 0, 0.7);
-          z-index: 9999;
-        }
-        .hidden {
-          display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: white;
+            font-size: 1.5rem;
+            flex-direction: column;
         }
         .spinner {
             border: 8px solid rgba(255, 255, 255, 0.3);
@@ -120,15 +123,12 @@
         </div>
     </div>
 
-
-    <!-- Loading Overlay with Progress Bar -->
-    <div id="loadingOverlay" class="loading-overlay hidden fixed inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50 z-50">
-        <p class="text-white mb-2">影片分析中，請稍候...</p>
-        <div class="w-3/4 max-w-xl bg-gray-300 rounded h-2">
-            <div id="progress-bar" class="bg-green-500 h-2 rounded transition-all duration-300" style="width: 0%;"></div>
-        </div>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>影片分析中，請稍候...</p>
     </div>
-    
+
     <div id="mainPage" class="container">
         <h1 class="text-4xl font-bold text-center text-gray-800 mb-8">棒球投手分析儀表板</h1>
 
@@ -315,65 +315,62 @@
         $('#upload-button').on('click', function() {
             $('#video-upload').click();
         });
-        
+
         $('#video-upload').on('change', async function() {
             const fileInput = this;
             if (fileInput.files.length === 0) {
                 $('#file-name').text('');
                 return;
             }
-    
+
             const file = fileInput.files[0];
             $('#file-name').text(`已選擇檔案: ${file.name}`);
-    
+
             const formData = new FormData();
             formData.append('video_file', file);
-    
-            // 顯示 loading 畫面與進度條
-            $('#loadingOverlay').removeClass('hidden');
-            startFakeProgressBar();
-    
+
+            $('#loadingOverlay').removeClass('hidden'); // 顯示 loading 畫面
+
             try {
                 const response = await fetch(`${BACKEND_URL}/analyze-pitch/`, {
                     method: 'POST',
                     body: formData,
                 });
-    
-                let data;
-                try {
-                    data = await response.json();
-                } catch (jsonErr) {
-                    throw new Error('後端未回傳 JSON 格式，請檢查後端伺服器');
-                }
-    
+
                 if (!response.ok) {
-                    throw new Error(data.detail || '影片分析失敗');
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || '影片分析失敗');
                 }
-    
+
+                const data = await response.json();
                 console.log('分析結果:', data);
-    
+
+                // 更新影片播放區
                 const videoPlayer = $('#video-player');
                 const outputVideoPath = data.output_video_path;
                 videoPlayer.attr('src', `${BACKEND_URL}/${outputVideoPath}`);
                 videoPlayer.removeClass('hidden');
                 $('#video-placeholder').addClass('hidden');
-    
+
+                // 更新姿勢評分與運動力學特徵
                 const biomechanics = data.biomechanics_features;
                 $('#release-frame').text(biomechanics.release_frame || 'N/A');
                 $('#landing-frame').text(biomechanics.landing_frame || 'N/A');
                 $('#shoulder-frame').text(biomechanics.shoulder_frame || 'N/A');
                 $('#total-frames').text(biomechanics.total_frames || 'N/A');
-    
+
                 $('#trunk-flexion-excursion').text(biomechanics.Trunk_flexion_excursion !== undefined ? biomechanics.Trunk_flexion_excursion.toFixed(2) : 'N/A');
-                $('#pelvis-obliquity').text(bichanics.Pelvis_obliquity_at_FC !== undefined ? biomechanics.Pelvis_obliquity_at_FC.toFixed(2) : 'N/A');
+                $('#pelvis-obliquity').text(biomechanics.Pelvis_obliquity_at_FC !== undefined ? biomechanics.Pelvis_obliquity_at_FC.toFixed(2) : 'N/A');
                 $('#trunk-rotation').text(biomechanics.Trunk_rotation_at_BR !== undefined ? biomechanics.Trunk_rotation_at_BR.toFixed(2) : 'N/A');
                 $('#shoulder-abduction').text(biomechanics.Shoulder_abduction_at_BR !== undefined ? biomechanics.Shoulder_abduction_at_BR.toFixed(2) : 'N/A');
                 $('#trunk-flexion').text(biomechanics.Trunk_flexion_at_BR !== undefined ? biomechanics.Trunk_flexion_at_BR.toFixed(2) : 'N/A');
                 $('#trunk-lateral-flexion').text(biomechanics.Trunk_lateral_flexion_at_HS !== undefined ? biomechanics.Trunk_lateral_flexion_at_HS.toFixed(2) : 'N/A');
-    
+
+                // 更新模型預測結果
                 $('#max-speed-kmh').text(data.max_speed_kmh !== undefined ? data.max_speed_kmh : 'N/A');
                 $('#pitch-score').text(data.pitch_score !== undefined ? data.pitch_score : 'N/A');
-    
+
+                // 更新 ball_score 顯示
                 if (data.ball_score !== undefined) {
                     const ballScoreText = data.ball_score > 0.5 ? '好球' : '壞球';
                     $('#ball-score-display').text(ballScoreText);
@@ -382,44 +379,19 @@
                     $('#ball-score-display').text('N/A');
                     $('#ball-score-raw').text('N/A');
                 }
-    
+
+                // 重新載入歷史紀錄
                 loadHistoryRecords();
+
                 await showCustomModal('影片分析成功！', 'alert');
-    
+
             } catch (error) {
                 console.error('分析請求失敗:', error);
                 await showCustomModal(`影片分析失敗: ${error.message}`, 'alert');
-    
             } finally {
-                completeProgressBar();
-                setTimeout(() => {
-                    $('#loadingOverlay').addClass('hidden');
-                }, 500);
+                $('#loadingOverlay').addClass('hidden'); // 隱藏 loading 畫面
             }
         });
-    
-        let progressInterval;
-    
-        function startFakeProgressBar() {
-            let progress = 0;
-            $('#progress-bar').css('width', '0%');
-            progressInterval = setInterval(() => {
-                if (progress < 92) {
-                    progress += Math.random() * 1.0;
-                    $('#progress-bar').css('width', `${progress}%`);
-                }
-            }, 400);
-        }
-    
-        function completeProgressBar() {
-            clearInterval(progressInterval);
-            $('#progress-bar').css('width', '100%');
-        }
-
-        function completeProgressBar() {
-            clearInterval(progressInterval);
-            $('#progress-bar').css('width', '100%');
-        }
 
         // 載入歷史紀錄
         async function loadHistoryRecords() {
@@ -854,7 +826,7 @@
                 });
             }
         }
+
     </script>
-    
 </body>
 </html>

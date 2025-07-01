@@ -123,10 +123,12 @@
         </div>
     </div>
 
-    <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="loading-overlay hidden">
-        <div class="spinner"></div>
-        <p>影片分析中，請稍候...</p>
+    <!-- Loading Overlay with Progress Bar -->
+    <div id="loadingOverlay" class="loading-overlay hidden flex flex-col items-center justify-center">
+        <p class="mb-4 text-white text-lg">影片分析中，請稍候...</p>
+        <div class="w-3/4 bg-gray-300 rounded h-4">
+            <div id="progress-bar" class="bg-green-500 h-4 rounded" style="width: 0%;"></div>
+        </div>
     </div>
 
     <div id="mainPage" class="container">

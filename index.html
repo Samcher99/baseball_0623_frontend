@@ -315,7 +315,8 @@
         $('#upload-button').on('click', function() {
             $('#video-upload').click();
         });
-
+        
+        const BACKEND_URL = "https://baseball-0623-backend-924124779607.europe-west1.run.app";
         $('#video-upload').on('change', async function() {
             const fileInput = this;
             if (fileInput.files.length === 0) {

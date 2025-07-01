@@ -389,7 +389,10 @@
                 console.error('分析請求失敗:', error);
                 await showCustomModal(`影片分析失敗: ${error.message}`, 'alert');
             } finally {
-                $('#loadingOverlay').addClass('hidden'); // 隱藏 loading 畫面
+                completeProgressBar();
+                setTimeout(() => {
+                    $('#loadingOverlay').addClass('hidden');
+                }, 500);
             }
         });
 

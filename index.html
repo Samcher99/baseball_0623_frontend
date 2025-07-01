@@ -405,7 +405,7 @@
             $('#progress-bar').css('width', '0%');
             progressInterval = setInterval(() => {
                 if (progress < 92) {
-                    progress += Math.random() * 0.6;
+                    progress += Math.random() * 1.0;
                     $('#progress-bar').css('width', `${progress}%`);
                 }
             }, 400);
